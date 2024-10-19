@@ -1,135 +1,118 @@
-format PE Console
+format PE Console      ; Формат файла - исполняемый файл для консоли
+entry start            ; Точка входа программы
 
-entry start
+include 'win32a.inc'   ; Подключение файла, содержащего определения для работы с Win32 API
 
-include 'win32a.inc'
+section '.data' data readable writeable   ; Секция данных программы (чтение/запись)
 
-section '.data' data readable writeable
+        struct welder                    ; Определение структуры welder (сварщик)
+            name db 30 dup(0)            ; Поле для имени, 30 байт, заполнено нулями
+            surname db 30 dup(0)         ; Поле для фамилии, 30 байт, заполнено нулями
+            patronymic db 30 dup(0)      ; Поле для отчества, 30 байт, заполнено нулями
+            discharge dd 0               ; Поле для разряда (целое число 4 байта)
+        ends                             ; Конец структуры
 
-        struct welder
-            name db 30 dup(0)
-            surname db 30 dup(0)
-            patronymic db 30 dup(0)
-            discharge dd 0
-        ends
-        welders welder ?,?,?,?
+        welders welder ?,?,?,?           ; Объявление массива из 5 сварщиков с инициализацией по умолчанию
                 welder ?,?,?,?
                 welder ?,?,?,?
                 welder ?,?,?,?
                 welder ?,?,?,?
-        string_input db '%s',0
-        int_output db '%d',10,0
-        struct_output db '%s, %s, %s, %d',10,0
-        n dd 5
-        size_of dd 94
-        i dd 0
 
-        read_file_name db 'in',0
-        write_file_name db 'out',0
-        w_mode db 'w',0
-        r_mode db 'r',0
-        read_file_d dd 0
-        write_file_d dd 0
-        size dd 0
+        string_input db '%s',0           ; Формат для ввода строки
+        int_output db '%d',10,0          ; Формат для вывода числа
+        struct_output db '%s, %s, %s, %d',10,0  ; Формат для вывода данных сварщика (имя, фамилия, отчество, разряд)
 
-section '.code' code readable writeable executable
+        n dd 5                           ; Количество сварщиков
+        size_of dd 94                    ; Размер одной структуры welder в байтах
+        i dd 0                           ; Счетчик цикла
+
+        read_file_name db 'in',0         ; Имя файла для чтения
+        write_file_name db 'out',0       ; Имя файла для записи
+        w_mode db 'w',0                  ; Режим открытия файла для записи
+        r_mode db 'r',0                  ; Режим открытия файла для чтения
+        read_file_d dd 0                 ; Дескриптор файла для чтения
+        write_file_d dd 0                ; Дескриптор файла для записи
+        size dd 0                        ; Переменная для хранения промежуточных размеров
+
+section '.code' code readable writeable executable   ; Секция кода программы
 
 start:
-        invoke fopen, read_file_name, r_mode
+        invoke fopen, read_file_name, r_mode    ; Открытие файла для чтения
+        mov [ds:read_file_d], eax               ; Сохранение дескриптора файла
 
-        ; ���������� ����������� �����
-        mov [ds:read_file_d], eax
+        mov eax, [ds:n]                         ; Загружаем количество сварщиков
+        imul [ds:size_of]                       ; Вычисляем общий размер данных для чтения (количество сварщиков * размер одного сварщика)
+        mov ecx, 1                              ; Указываем, что считываем один блок
 
-        ; ���������� ���������� ��������� ����
-        mov eax, [ds:n]
-        imul [ds:size_of]
-        ; ����� ������� 1 �������
-        mov ecx, 1
+        invoke fread, welders, ecx, eax, [ds:read_file_d] ; Считываем данные из файла
 
-        invoke fread, welders, ecx, eax, [ds:read_file_d]
+        invoke fclose, [ds:read_file_d]         ; Закрываем файл для чтения
 
-        invoke fclose, [ds:read_file_d]
+        invoke fopen, write_file_name, w_mode   ; Открываем файл для записи
+        mov [ds:write_file_d], eax              ; Сохраняем дескриптор файла для записи
 
-        invoke fopen, write_file_name, w_mode
-
-        mov [ds:write_file_d], eax
-
-
-        mov [ds:i], 0
+        mov [ds:i], 0                           ; Инициализируем счетчик i
         looop2:
-                ; ������ �������� � ������ ���������
-                mov eax, [ds:i]
-                imul [ds:size_of]
+                mov eax, [ds:i]                 ; Загружаем значение счетчика i
+                imul [ds:size_of]               ; Вычисляем смещение для текущего сварщика
 
-                ; ������ ���� discharge
-                mov edx, eax
-                add edx, welders.discharge
+                mov edx, eax                    ; Загружаем смещение в edx
+                add edx, welders.discharge       ; Смещаем указатель на поле discharge в структуре сварщика
 
-                ; ��������� discharge
-                push eax
-                mov eax, 1
-                sub [edx], eax
-                pop eax
+                push eax                        ; Сохраняем eax в стеке
+                mov eax, 1                      ; Устанавливаем значение 1
+                sub [edx], eax                  ; Уменьшаем разряд сварщика на 1
+                pop eax                         ; Восстанавливаем значение eax
 
-                inc [ds:i]
-                mov edx, [ds:i]
-                cmp edx, 5
-                jne looop2
+                inc [ds:i]                      ; Увеличиваем счетчик i
+                mov edx, [ds:i]                 ; Загружаем новое значение счетчика
+                cmp edx, 5                      ; Проверяем, не достигли ли мы 5 сварщиков
+                jne looop2                      ; Если нет, продолжаем цикл
 
-        ; ������ ���������� ���� ��� ������ � ����
-        mov eax, [ds:n]
-        imul [ds:size_of]
-        mov ecx, 1
-        mov [ds:i], 0
+        mov eax, [ds:n]                         ; Загружаем количество сварщиков
+        imul [ds:size_of]                       ; Вычисляем общий размер данных для записи
+        mov ecx, 1                              ; Устанавливаем количество блоков для записи
 
-                looop:
-                ; ������ �������� � ������ ���������
-                mov eax, [ds:i]
-                imul [ds:size_of]
-                mov [ds:size], eax
+        mov [ds:i], 0                           ; Сбрасываем счетчик i
+        looop:
+                mov eax, [ds:i]                 ; Загружаем значение счетчика i
+                imul [ds:size_of]               ; Вычисляем смещение для текущего сварщика
+                mov [ds:size], eax              ; Сохраняем смещение
 
-                ; ������ �����
-                mov ebx, [ds:size]
-                add ebx, welders.name
+                mov ebx, [ds:size]              ; Загружаем смещение в ebx
+                add ebx, welders.name           ; Смещаем указатель на поле name
 
+                mov ecx, [ds:size]              ; Загружаем смещение в ecx
+                add ecx, welders.surname        ; Смещаем указатель на поле surname
 
-                mov ecx, [ds:size]
-                add ecx, welders.surname
+                add eax, welders.patronymic     ; Смещаем указатель на поле patronymic
 
+                mov edx, [ds:size]              ; Загружаем смещение в edx
+                add edx, welders.discharge      ; Смещаем указатель на поле discharge
 
-                add eax, welders.patronymic
+                invoke printf, struct_output, ebx, ecx, eax, [edx] ; Выводим информацию о текущем сварщике
 
+                inc [ds:i]                      ; Увеличиваем счетчик i
+                mov edx, [ds:i]                 ; Загружаем новое значение счетчика
+                cmp edx, 3                      ; Проверяем, не достигли ли мы 3 сварщиков
+                jne looop                       ; Если нет, продолжаем цикл
 
-                mov edx, [ds:size]
-                add edx, welders.discharge
+        mov eax, [ds:size_of]                   ; Загружаем размер структуры
+        mov ecx, [ds:n]                         ; Загружаем количество сварщиков
+        invoke fwrite, welders, eax, ecx, [ds:write_file_d] ; Записываем данные в файл
 
+        invoke fclose, [ds:write_file_d]        ; Закрываем файл для записи
 
-                invoke printf, struct_output, ebx, ecx, eax, [edx]
+        invoke getch                            ; Ожидаем нажатие клавиши
+        invoke ExitProcess, 0                   ; Завершаем выполнение программы
 
-                inc [ds:i]
-                mov edx, [ds:i]
-                cmp edx, 3
-                jne looop
-
-
-        ; ������ � ���� � ��������
-        mov eax, [ds:size_of]   ; size of a single welder structure
-        mov ecx, [ds:n]         ; number of welders
-        invoke fwrite, welders, eax, ecx, [ds:write_file_d]
-        invoke fclose, [ds:write_file_d]
-
-
-        invoke getch
-        invoke ExitProcess, 0
-
-section '.idata' data import readable
-  library kernel, 'kernel32.dll',\
-                msvcrt, 'msvcrt.dll'
+section '.idata' data import readable           ; Секция для импорта функций из библиотек
+  library kernel, 'kernel32.dll',\              ; Импорт библиотеки kernel32.dll
+                msvcrt, 'msvcrt.dll'            ; Импорт библиотеки msvcrt.dll
   
-  import kernel,\
+  import kernel,\                               ; Импортируемая функция ExitProcess из kernel32.dll
          ExitProcess, 'ExitProcess'
 
-          
-  import msvcrt,\
+  import msvcrt,\                               ; Импортируемые функции из msvcrt.dll
           printf, 'printf',\
           getch, '_getch', scanf, 'scanf', fopen, 'fopen', fwrite, 'fwrite', fclose, 'fclose', fread, 'fread'
