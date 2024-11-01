@@ -1,7 +1,7 @@
 .data
-filename:   .string "E:/Programming/assembler_sfu_2nd_course/project_2_2/random_numbers.txt"    # ПУТЬ ФАЙЛА
+filename:   .string "/home/luckhost/programming/assembler_sfu_2nd_course/project_2_2/in.txt"    # ПУТЬ ФАЙЛА
 array_size: .word 9                       # Размер массива
-array:      .space 100                      # Массив случайных чисел (9 чисел по 4 байта)
+array:      .space 36                      # Массив случайных чисел (9 чисел по 4 байта)
 new_line:    .string  "\n"
 
 .text
@@ -42,7 +42,7 @@ generate_random_loop:
     # Запись массива в файл
     mv      a0, s0           # Файловый дескриптор
     la      a1, array        # Указатель на данные для записи
-    li      a2, 100          # Размер данных (25 * 4 байта)
+    li      a2, 36          # Размер данных (25 * 4 байта)
     li      a7, 64           # Системный вызов write
     ecall
 

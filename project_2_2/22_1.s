@@ -1,156 +1,76 @@
-.globl __start
-
 .data
-maxItem:         .word -1000
-minItem:         .word 1000
-currentRow:      .word 0
-array:           .word 0, 0, 0, 0, 0, 0, 0, 0, 0    # 9 zeros for the array
-
-O_READONLY:      .word 1
-path:            .string "E:/Programming/assembler_sfu_2nd_course/project_2_2/random_numbers.txt"
-size_arr:        .word 9
-N:               .word 3
-item_msg:        .string "Min in row is: "
-item_msg_max:    .string "Max out of min is: "
+filename:   .string "/home/luckhost/programming/assembler_sfu_2nd_course/project_2_2/in.txt"  # ПУТЬ ФАЙЛА
+array_size: .word 9                       # Размер массива
+buffer:     .space 4                      # Буфер для чтения чисел из файла
+new_line:   .string "\n"                  # Символ новой строки
 
 .text
+.globl _start
 
-func:
-    mv t1, a0            # t1: address of input array
-    li t3, 0             # t3: current row
-arr_row:
-    lw t2, N
-    li t4, 0             # t4: current column
-    
-arr_col:
-    mv t5, t3            # t5: offset
-    mul t5, t5, t2
-    add t5, t5, t4
+_start:
+    # Открытие файла
+    li      a7, 1024                      # Системный вызов open
+    la      a0, filename                  # Путь к файлу
+    li      a1, 0                         # Режим: только чтение
+    ecall
+    mv      s0, a0                        # Сохранение файлового дескриптора
 
-    mv t0, t1
-    add t0, t0, t5
-    lb t6, 0(t0)         # t6 - current element
+    li      s2, 3                         # Количество строк (измените на реальное количество строк в файле)
+    li      s1, 0x80000000                # Инициализация глобального максимума
+    la      t1, buffer                    # Адрес буфера для чтения
 
-    # Compare current element with minimum element in the row
-    la a1, minItem
-    lw t0, 0(a1)
-    
-    bge t6, t0, not_min_row
-    sw t6, 0(a1)
+find_min_max_loop:
+    li      a4, 0x7FFFFFFF                # Инициализация минимума текущей строки
+    li      t0, 3                         # Количество чисел в строке
 
-not_min_row:
-    addi t4, t4, 1
-    blt t4, t2, arr_col
-
-    li a0, 4             # 4 - syscall for printing string
-    la a1, item_msg
+inner_loop:
+    # Чтение числа из файла
+    mv      a0, s0                        # Файловый дескриптор
+    la      a1, buffer                    # Указатель на буфер
+    li      a2, 4                         # Размер данных для чтения
+    li      a7, 63                        # Системный вызов read
     ecall
 
-    li a0, 1             # 1 - syscall for printing integers
-    lw a1, minItem
+    # Проверка конца файла
+    beqz    a0, end_loop
+
+    # Считывание числа из буфера
+    lw      a3, 0(a1)                     # Число из файла в a3
+
+    # Сравнение и нахождение минимума
+    blt     a3, a4, update_min
+    j       check_next
+
+update_min:
+    mv      a4, a3                        # Обновление минимума текущей строки
+
+check_next:
+    addi    t0, t0, -1                    # Уменьшение счетчика чисел в строке
+    bnez    t0, inner_loop                # Если числа остались, продолжить
+
+    # Обновление глобального максимума
+    bgt     a4, s1, update_global_max
+    j       next_iteration
+
+update_global_max:
+    mv      s1, a4                        # Обновление глобального максимума
+
+next_iteration:
+    addi    s2, s2, -1                    # Уменьшение счетчика строк
+    bnez    s2, find_min_max_loop         # Переход к следующей итерации, если строки остались
+
+end_loop:
+    # Вывод максимального значения среди минимальных
+    li      a7, 1                         # Системный вызов print_int
+    mv      a0, s1                        # Вывод результата
     ecall
 
-    li a0, 11
-    li a1, '\n'
+    # Закрытие файла
+    mv      a0, s0                        # Файловый дескриптор
+    li      a7, 57                        # Системный вызов close
     ecall
 
-    la a1, maxItem
-    la a4, minItem
-    lw t5, 0(a1)         # t5 = max
-    lw t0, 0(a4)         # t0 = min
-    
-    blt t0, t5, not_new_max
-    sw t0, 0(a1)
-
-not_new_max:
-    # Update minimum value for each row
-    la a1, minItem
-    li t6, 1000
-    sw t6, 0(a1)
-    
-    # Move to the next row
-    addi t3, t3, 1
-    lw t0, N
-    blt t3, t0, arr_row
-
-    li a0, 4             # 4 - syscall for printing string
-    la a1, item_msg_max
-    ecall
-
-    li a0, 1             # 1 - syscall for printing integers
-    lw a1, maxItem
-    ecall  
-
-    li a0, 11
-    li a1, '\n'
-    ecall
-    
-    li a0, 11
-    li a1, '\n'
-    ecall
-    ret
-
-print_arr:
-    mv t1, a0            # t1: address of input array
-    li t3, 0             # t3: current row
-print_arr_row:
-    lw t2, N
-    li t4, 0             # t4: current column
-print_arr_col:
-    mv t5, t3            # t5: offset
-    mul t5, t5, t2
-    add t5, t5, t4
-    
-    mv  t0, t1
-    add t0, t0, t5
-    lb t6, 0(t0)
-
-    li a0, 1             # 1 - syscall for printing integer
-    mv a1, t6
-    ecall   
-    li a0, 11
-    li a1, ' '
-    ecall
-    
-    addi t4, t4, 1
-    blt t4, t2, print_arr_col
-
-    li a0, 11           # Move to next row
-    li a1, '\n'
-    ecall
-
-    addi t3, t3, 1
-    lw t0, N
-    blt t3, t0, print_arr_row
-    
-    li a0, 11
-    li a1, '\n'
-    ecall
-    ret
-
-__start:
-    li a0, 1024         # 1024 - open syscall (Linux ABI for RISC-V)
-    la a1, path
-    lw a2, O_READONLY   # Read-only
-    ecall
-    mv s0, a0           # s0 - file descriptor
-  
-    li a0, 63           # 63 - read syscall (Linux ABI for RISC-V)
-    mv a1, s0
-    la a2, array
-    lw a3, size_arr
-    ecall
-
-    la a0, array
-    call print_arr
-  
-    la a0, array
-    call func           # main task
-  
-    li a0, 93           # 93 - exit syscall (Linux ABI for RISC-V)
-    ecall
-
-
-exit_program:
-    li a0, 93            # Exit syscall code
+    # Завершение программы
+    li      a7, 93                        # Системный вызов exit
+    li      a0, 0                         # Код завершения программы
     ecall
